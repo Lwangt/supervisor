@@ -2,9 +2,9 @@
 
 > 记录"什么已经验证过、什么还没有"。以事实为准，不把"写完了"当成"能跑"。
 
-**当前版本：v0.1.0 —— 已发布，可直接在手机上安装预览。**
+**当前版本：v0.1.1 —— 已发布，可直接在手机上安装预览。**
 
-手机安装地址（不需要 Android Studio）：<https://github.com/Lwangt/supervisor/releases/tag/v0.1.0>
+手机安装地址（不需要 Android Studio）：<https://github.com/Lwangt/supervisor/releases/tag/v0.1.1>
 
 ---
 
@@ -15,30 +15,46 @@
 | 构建工具链 | JDK 17.0.20.1 + Android SDK (platform-35 / build-tools 35.0.0) + Gradle 8.9，装在 `D:\Android` |
 | Kotlin 编译 | 通过，0 错误 |
 | Room / KSP 代码生成 | 通过，schema 已导出到 `app/schemas/` |
-| 单元测试 | **127 条全部通过**，0 失败（9 个测试类） |
+| 单元测试 | **135 条全部通过**，0 失败（10 个测试类） |
 | Debug APK | 17.22 MB，可安装 |
-| **Release APK** | **1.33 MB**（R8 压缩后），versionCode=2 / versionName=0.1.0 |
+| **Release APK** | **1.34 MB**（R8 压缩后），versionCode=3 / versionName=0.1.1 |
 | 权限审计 | 仅 7 项：VIBRATE、POST_NOTIFICATIONS、SCHEDULE_EXACT_ALARM、USE_EXACT_ALARM、RECEIVE_BOOT_COMPLETED、WAKE_LOCK、REQUEST_IGNORE_BATTERY_OPTIMIZATIONS |
 | **无 INTERNET 权限** | 由 `aapt2 dump badging` 对二进制 APK 验证确认 |
 | 无网络相关权限 | 已移除 WorkManager，因此 `ACCESS_NETWORK_STATE` / `FOREGROUND_SERVICE` 都已消失 |
-| GitHub 发布 | tag `v0.1.0` + Release 资产 `PlanList-0.1.0.apk`，下载链接 HTTP 200 |
+| GitHub 发布 | tag `v0.1.0` / `v0.1.1`，各带 Release 资产，下载链接 HTTP 200 |
+| 发布自动化 | `tools/release.ps1` 已端到端实跑过一次（v0.1.1 就是这么发的） |
 
 测试分布：
 
 ```
-RecurrenceCalculatorTest   36    GroupFormTest            15
-LogDaoTest                 13    ReminderSchedulerTest    13
-MacroMathTest              12    StreakCalculatorTest     11
-TodayAssemblerTest         11    HistoryAssemblerTest      8
-BackupCodecTest             8
+RecurrenceCalculatorTest       36    GroupFormTest                15
+LogDaoTest                     13    ReminderSchedulerTest        13
+MacroMathTest                  12    StreakCalculatorTest         11
+TodayAssemblerTest             11    HistoryAssemblerTest          8
+NextReminderCalculatorTest      8    BackupCodecTest               8
 ```
 
-### 单元测试抓到的两个真 bug（已修）
+### 单元测试抓到的两个真 bug（v0.1.1 已修）
 
 1. **历史页每一天显示成同一种状态** —— `HistoryAssembler` 用同一份 `item_log` 状态表
    遍历所有日期，没有按日期分组，别的日期的打卡漏进了当天。
 2. **"唯一一组只做了一半"被显示成完全没做** —— `DaySummary` 的 `isPartial`/`isMissed`
    只看整组完成数，此时 `completedGroups == 0`。
+
+### v0.1.1：后台无服务也能准时提醒
+
+架构上**没有也不需要任何常驻服务**：`AlarmManager` 到点后由**系统**启动应用进程、
+投递广播给 `BroadcastReceiver`，应用无需存活于后台。本轮做的是让这条链路更快、可观测：
+
+- **修掉一个真实的性能缺陷**：`Application.onCreate` 在**进程被闹钟冷启动时也会执行**，
+  而它原本第一件事就是跑一遍完整的 7 天窗口重排（读库 + 几十次 `setExact`）。
+  等于闹钟响的那一刻，最该优先弹出的通知被排在一堆无关工作后面。
+  现在它只做依赖容器 + 建通知渠道，重排交给真正该负责的时机。
+- 新增 `SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED` 接收：用户在系统里
+  一开启"闹钟和提醒"就立刻重排，不必等下次打开 App。
+- 设置页新增**「提醒排程状态」卡片**：显示下一次提醒的确切时间与计划名，
+  不必等到点就能确认到底排上没有。
+- 新增纯函数 `NextReminderCalculator`（+8 条测试）。
 
 ## 二、尚未验证 ⚠️
 
