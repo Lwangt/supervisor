@@ -49,6 +49,11 @@
             android:name=".reminder.ReminderActionReceiver"
             android:exported="false" />
 
+        <!-- 每日自续期的窗口补齐闹钟（替代 WorkManager，避免引入 ACCESS_NETWORK_STATE） -->
+        <receiver
+            android:name=".reminder.DailyTopUpReceiver"
+            android:exported="false" />
+
         <!-- 开机、应用更新、时间/时区变更后重排闹钟 -->
         <receiver
             android:name=".reminder.RescheduleReceiver"

@@ -67,7 +67,7 @@
 | UI | Jetpack Compose + Material 3（Compose BOM 2024.12.01） | 还原 Macro7 卡片/进度环/手势最省力；无 XML 布局负担 |
 | 架构 | 单模块 MVVM + Repository + 手动 DI（Application 级容器） | 个人自用项目，引入 Hilt 只增加 KSP/编译负担，无收益 |
 | 持久化 | Room 2.6.1（KSP）+ DataStore Preferences | 计划/日志是强关系型+聚合查询，Room 合适；设置项用 DataStore |
-| 调度 | AlarmManager `setExactAndAllowWhileIdle` + WorkManager 12h 补齐 | 精确到分钟的本地提醒唯一可靠方案；WorkManager 兜底 Doze 吞闹钟 |
+| 调度 | AlarmManager `setExactAndAllowWhileIdle` + 每日自续期补齐闹钟 | 精确到分钟的本地提醒唯一可靠方案；自续期闹钟兜底 Doze/系统清理，且不引入额外权限 |
 | 时间 | `java.time`（LocalDate/LocalDateTime/ZonedDateTime） | 纯函数、可注入 `Clock`，**提醒算法可 100% 单元测试** |
 | 构建 | AGP 8.7.3 + Gradle 8.9 + JDK 17 + compileSdk/targetSdk 35 + minSdk 26 | 经充分验证的稳定组合；minSdk 26 保证 `java.time` 与通知渠道原生可用 |
 
@@ -101,7 +101,7 @@ app/src/main/java/com/planlist/app/
 │  ├─ ReminderReceiver.kt         # 闹钟触发 → 通知 + 震动
 │  ├─ ReminderActionReceiver.kt   # 通知按钮：完成 / 稍后 10 分钟
 │  ├─ RescheduleReceiver.kt       # 开机 / 更新 / 改时间 / 改时区 → 重排
-│  ├─ AlarmTopUpWorker.kt         # 12h 周期补齐窗口
+│  ├─ DailyTopUpReceiver.kt       # 每日 00:05 自续期补齐窗口
 │  └─ NotificationFactory.kt      # 渠道、震动模式、免打扰策略
 └─ ui/
    ├─ theme/                      # Color / Type / Theme（深色优先）
@@ -120,12 +120,14 @@ app/src/main/java/com/planlist/app/
 
 ### 5.1 调度策略
 
-1. **滚动 7 天窗口**：每次 App 启动 / 每日首个闹钟触发 / WorkManager 12h 唤醒时，调用 `ReminderScheduler.scheduleWindow(7)`。
+1. **滚动 7 天窗口**：每次 App 启动 / 每个闹钟触发 / 每日 00:05 补齐闹钟唤醒时，调用 `ReminderScheduler.scheduleWindow(7)`。
 2. 对窗口内每一天，用 `RecurrenceCalculator` 算出当天应有的组，按 `timeOfDay − reminderOffsetMinutes` 计算实际触发时刻，只对**未来**时刻注册精确闹钟。
 3. 每个闹钟的 `requestCode` = `groupId` 与 `LocalDate` 的稳定哈希 → 保证重复注册自动覆盖、可单独取消。
 4. `PendingIntent.FLAG_UPDATE_CURRENT or FLAG_IMMUTABLE`；`Intent` 里带 `EXTRA_GROUP_ID` 与 `EXTRA_DATE`，接收端直接查库，**不携带过期文案**。
 5. **权限降级**：`AlarmManager.canScheduleExactAlarms() == false` 时自动改用 `setAndAllowWhileIdle`（宽松，±数分钟），并在设置页顶部显示黄色提示条 + 一键跳转授权页。
-6. **不依赖 WorkManager 做精确提醒**（最小周期 15 分钟，且 Doze 下不可靠），它只负责"补齐窗口"。
+6. **不使用 WorkManager**：它的周期任务最小间隔 15 分钟且 Doze 下不可靠，做不了精确提醒；
+   而它作为"补齐窗口"的兜底又会把 `ACCESS_NETWORK_STATE` 与 `FOREGROUND_SERVICE`
+   合并进 manifest，对一个宣称纯本地离线的应用是没必要的噪声。改用一次性精确闹钟自续期。
 
 ### 5.2 通知与震动
 
@@ -243,7 +245,7 @@ app/src/main/java/com/planlist/app/
 
 | 风险 | 等级 | 对策 |
 |------|------|------|
-| HyperOS 后台杀进程导致提醒丢失 | **高** | 三重保险：精确闹钟 + 12h WorkManager 补齐 + 开机/改时间重排；设置页强引导白名单；M6 连续 3 天实测作为准入条件 |
+| HyperOS 后台杀进程导致提醒丢失 | **高** | 三重保险：精确闹钟 + 每日自续期补齐 + 开机/改时间重排；设置页强引导白名单；M6 连续 3 天实测作为准入条件 |
 | 系统「强行停止」清除闹钟 | 中 | 无法绕过（Android 限制）；应用内说明 + 重开 App 自动重排 |
 | 精确闹钟权限被拒 | 中 | 自动降级 `setAndAllowWhileIdle` + 显式提示，绝不静默失败 |
 | JDK 16 不兼容 AGP 8.x | 中 | M0 安装 JDK 17 并只对 Gradle 生效（`org.gradle.java.home`），不动系统 JAVA_HOME，避免影响你其他项目 |

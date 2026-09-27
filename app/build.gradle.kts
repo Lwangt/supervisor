@@ -16,7 +16,7 @@ android {
         applicationId = "com.planlist.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
+        versionCode = 2
         versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -104,7 +104,6 @@ dependencies {
     ksp(libs.androidx.room.compiler)
 
     implementation(libs.androidx.datastore.preferences)
-    implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.kotlinx.serialization.json)
 
     testImplementation(libs.junit)
@@ -113,7 +112,6 @@ dependencies {
     testImplementation(libs.androidx.test.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.androidx.room.testing)
-    testImplementation(libs.androidx.work.testing)
 
     androidTestImplementation(libs.androidx.test.junit)
     androidTestImplementation(libs.androidx.test.espresso.core)

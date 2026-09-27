@@ -81,15 +81,18 @@ fun GroupEditScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             // ---- 名称 ----
+            // nameError 是计算属性（get() 表达式），在 supportingText 的 lambda 里无法智能转换，
+            // 必须先取到局部 val，否则 Kotlin 报 "Smart cast to 'String' is impossible"
+            val nameError = form.nameError
             OutlinedTextField(
                 value = form.name,
                 onValueChange = { value -> onFormChange { it.copy(name = value) } },
                 label = { Text("计划名称") },
                 placeholder = { Text("例如：午餐 / 推日训练") },
-                isError = form.nameError != null,
+                isError = nameError != null,
                 supportingText = {
-                    if (form.nameError != null) {
-                        Text(form.nameError, color = Danger)
+                    if (nameError != null) {
+                        Text(nameError, color = Danger)
                     } else {
                         Text("例如：午餐 / 推日训练")
                     }

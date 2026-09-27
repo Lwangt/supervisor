@@ -80,7 +80,9 @@ class HistoryAssemblerTest {
             logs = listOf(log(day2, 11L)),
         ).single()
         assertTrue(result.isPartial)
-        assertEquals(1, result.completedGroups)
+        // 只是条目完成了一半，整组还没完成
+        assertEquals(0, result.completedGroups)
+        assertEquals(1, result.completedItems)
     }
 
     @Test

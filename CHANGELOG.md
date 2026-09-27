@@ -51,6 +51,28 @@
 - Material 3 深色优先主题，大圆角卡片，四标签底部导航（今日 / 计划 / 历史 / 设置）
 - 设置页集中展示三项权限状态与 HyperOS 自启动、任务加锁引导
 
+### 变更
+- **移除 WorkManager**。它会在合并 manifest 时带进 `ACCESS_NETWORK_STATE` 与
+  `FOREGROUND_SERVICE` 两个权限 —— 对一个明确宣称"纯本地不联网"的应用来说，
+  权限列表里出现"查看网络连接"是没必要的信任成本。
+  窗口兜底改由 `DailyTopUpReceiver` 承担：每天 00:05 的一次性精确闹钟，触发时补满
+  7 天窗口，**并把明天的自己排上**（自续期链）。即使连续几周不打开 App，窗口也不会断。
+
+### 修复
+- **历史页每一天显示成同一种状态**：`HistoryAssembler` 用同一份 `item_log` 状态表
+  遍历所有日期，没有按日期分组，导致别的日期的打卡"漏"进了当天。
+  已改为先按日期分组再逐日计算；`TodayAssembler` 也加了同样的防御性过滤
+  （历史页的"日详情"会传入一个日期区间的日志）。这个 bug 由单元测试捕获。
+- **"唯一一组只做了一半"被显示成完全没做**：`DaySummary` 的 `isPartial` / `isMissed`
+  原先只看"整组完成数"，此时 `completedGroups == 0`，于是日历上显示为未完成。
+  已改为按**条目完成数**判定。
+- 首次编译暴露的 4 处问题：计算属性在 lambda 内无法智能转换、
+  把 `Modifier` 的扩展函数当顶层函数调用、捕获在闭包里的可空 `var` 无法智能转换、
+  `const val` 不允许持有数组。
+
 ### 说明
 - 目标设备为小米 HyperOS 3（Android 16），minSdk 26 / targetSdk 35
-- 本版本尚未在真机上验证过提醒的长期稳定性（需连续 3 天实测，见 `PLAN.md` §10）
+- 127 条单元测试全部通过（`gradlew testDebugUnitTest`，9 个测试类）
+- 最终权限列表：VIBRATE、POST_NOTIFICATIONS、SCHEDULE_EXACT_ALARM、USE_EXACT_ALARM、
+  RECEIVE_BOOT_COMPLETED、WAKE_LOCK、REQUEST_IGNORE_BATTERY_OPTIMIZATIONS。**无 INTERNET**
+- 本版本尚未在真机上验证提醒的长期稳定性（需连续 3 天实测，见 `PLAN.md` §10）

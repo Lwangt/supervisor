@@ -55,7 +55,6 @@ import com.planlist.app.ui.components.SlotBadge
 import com.planlist.app.ui.theme.Danger
 import com.planlist.app.ui.theme.Info
 import com.planlist.app.ui.theme.Primary
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -383,7 +382,7 @@ private fun HoldToFinishBar(onFinish: () -> Unit, modifier: Modifier = Modifier)
             .pointerInput(Unit) {
                 detectTapGestures(
                     onPress = {
-                        var job: Job? = scope.launch {
+                        val job = scope.launch {
                             val steps = 20
                             repeat(steps) { index ->
                                 delay(HOLD_MILLIS / steps)
@@ -395,7 +394,6 @@ private fun HoldToFinishBar(onFinish: () -> Unit, modifier: Modifier = Modifier)
                         }
                         tryAwaitRelease()
                         job.cancel()
-                        job = null
                         progress = 0f
                     },
                 )

@@ -48,7 +48,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.planlist.app.AppContainer
 import com.planlist.app.data.repo.AppSettings
 import com.planlist.app.data.repo.ThemeMode
-import com.planlist.app.reminder.AlarmTopUpWorker
 import com.planlist.app.reminder.NotificationFactory
 import com.planlist.app.reminder.Permissions
 import com.planlist.app.ui.theme.Danger
@@ -174,7 +173,17 @@ fun SettingsScreen(container: AppContainer) {
             onAction = { SettingsIntents.requestIgnoreBatteryOptimization(context) },
         )
 
-        TextButton(onClick = { AlarmTopUpWorker.runOnce(context) }) {
+        TextButton(
+            onClick = {
+                scope.launch {
+                    runCatching {
+                        container.reminderScheduler.scheduleWindow()
+                        container.reminderScheduler.scheduleDailyTopUp()
+                    }
+                    status = "已按当前计划重排全部提醒"
+                }
+            },
+        ) {
             Text("立即重排所有提醒")
         }
 

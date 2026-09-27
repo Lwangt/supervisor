@@ -65,6 +65,34 @@ class ReminderScheduler(
         }
     }
 
+    /**
+     * 排下一次"窗口补齐"闹钟（默认每天 00:05）。
+     *
+     * 自己给自己排下一次，形成自续期链：只要系统没有清掉闹钟，
+     * 哪怕用户几周不打开 App，7 天滚动窗口也会一直被补满。
+     * 这替代了原先的 WorkManager 周期任务，且不引入任何额外权限。
+     */
+    fun scheduleDailyTopUp() {
+        val manager = alarmManager ?: return
+        val now = time.now()
+        var next = now.toLocalDate().atTime(TOP_UP_HOUR, TOP_UP_MINUTE)
+        if (!next.isAfter(now)) next = next.plusDays(1)
+        val millis = next.atZone(time.zone()).toInstant().toEpochMilli()
+        setAlarm(manager, millis, topUpPendingIntent())
+    }
+
+    private fun topUpPendingIntent(): PendingIntent {
+        val intent = Intent(context, DailyTopUpReceiver::class.java).apply {
+            data = Uri.parse("planlist://topup")
+        }
+        return PendingIntent.getBroadcast(
+            context,
+            TOP_UP_REQUEST_CODE,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+    }
+
     /** 关闭提醒总开关时调用：取消窗口内所有组的闹钟。 */
     suspend fun cancelAllReminders() {
         val manager = alarmManager ?: return
@@ -162,5 +190,10 @@ class ReminderScheduler(
         private const val CANCEL_LOOKBACK_DAYS = 2L
 
         private const val SNOOZE_REQUEST_OFFSET = 999_983
+
+        /** 每日补齐窗口的时刻：凌晨 00:05，几乎不会与用户的提醒撞车。 */
+        private const val TOP_UP_HOUR = 0
+        private const val TOP_UP_MINUTE = 5
+        private const val TOP_UP_REQUEST_CODE = 1_000_003
     }
 }

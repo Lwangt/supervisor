@@ -1,7 +1,6 @@
 package com.planlist.app
 
 import android.app.Application
-import com.planlist.app.reminder.AlarmTopUpWorker
 import com.planlist.app.reminder.NotificationFactory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -26,6 +25,6 @@ class PlanListApp : Application() {
             runCatching { container.reminderScheduler.scheduleWindow() }
                 .onFailure { /* 首次启动无计划时会走到这里，属正常 */ }
         }
-        AlarmTopUpWorker.enqueue(this)
+        runCatching { container.reminderScheduler.scheduleDailyTopUp() }
     }
 }

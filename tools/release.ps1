@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     一次完成：改版本号 + 写 CHANGELOG + 提交 + 打 tag + 推送 + 编译 APK（可选发布 GitHub Release）。
 .DESCRIPTION

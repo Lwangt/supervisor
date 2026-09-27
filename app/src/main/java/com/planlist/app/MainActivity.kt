@@ -6,8 +6,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 import com.planlist.app.data.repo.AppSettings
-import com.planlist.app.reminder.AlarmTopUpWorker
 import com.planlist.app.ui.AppRoot
 import com.planlist.app.ui.theme.PlanListTheme
 
@@ -32,6 +32,9 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         // 每次回到前台补一次排程窗口：覆盖"系统清理 + 用户手动强停"后的恢复
-        AlarmTopUpWorker.runOnce(this)
+        val container = (application as PlanListApp).container
+        container.appScope.launch {
+            runCatching { container.reminderScheduler.scheduleWindow() }
+        }
     }
 }

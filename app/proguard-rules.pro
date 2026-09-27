@@ -17,6 +17,4 @@
 # Room
 -keep class * extends androidx.room.RoomDatabase { <init>(); }
 
-# WorkManager 反射实例化 Worker
--keep class * extends androidx.work.ListenableWorker { <init>(...); }
 -keep class com.planlist.app.reminder.** { *; }

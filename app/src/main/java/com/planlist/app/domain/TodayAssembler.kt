@@ -64,7 +64,11 @@ object TodayAssembler {
         logs: List<ItemLogEntity>,
     ): List<TodayGroup> {
         val itemsByGroup = items.groupBy { it.groupId }
-        val statusByItem: Map<Long, LogStatus> = logs.associate { it.itemId to it.status }
+        // 防御性过滤：调用方可能传入一个日期区间的日志（历史页的"日详情"就是这样）。
+        // 不过滤的话，别的日期的打卡会"漏"到这一天，把没做的一天显示成已完成。
+        val statusByItem: Map<Long, LogStatus> = logs
+            .filter { it.date == date.toString() }
+            .associate { it.itemId to it.status }
 
         val applicable = RecurrenceCalculator.occurrencesOn(groups, date)
 
@@ -112,6 +116,15 @@ data class DaySummary(
 ) {
     val isRest: Boolean get() = totalGroups == 0
     val isDone: Boolean get() = totalGroups > 0 && completedGroups == totalGroups
-    val isPartial: Boolean get() = completedGroups in 1 until totalGroups
-    val isMissed: Boolean get() = totalGroups > 0 && completedGroups == 0
+
+    /**
+     * 有进展但没做完。
+     *
+     * 刻意按**条目数**判定而不是"完成了几个整组"：
+     * 否则"唯一的那个组里做了一半"会算出 completedGroups == 0，
+     * 被错误地显示成"完全没做"。
+     */
+    val isPartial: Boolean get() = !isRest && !isDone && completedItems > 0
+
+    val isMissed: Boolean get() = !isRest && !isDone && completedItems == 0
 }

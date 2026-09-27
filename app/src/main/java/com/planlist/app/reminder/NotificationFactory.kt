@@ -28,7 +28,8 @@ object NotificationFactory {
 
     const val CHANNEL_REMINDERS = "reminders"
 
-    private const val VIBRATION_PATTERN = longArrayOf(0, 400, 200, 400)
+    // 不能用 const：const 只允许基本类型与 String，数组会编译报错
+    private val VIBRATION_PATTERN = longArrayOf(0, 400, 200, 400)
 
     private const val ACTION_OFFSET_COMPLETE = 11
     private const val ACTION_OFFSET_SNOOZE = 22

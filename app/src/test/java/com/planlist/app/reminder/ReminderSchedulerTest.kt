@@ -20,6 +20,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.shadows.ShadowAlarmManager
 import org.robolectric.annotation.Config
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -50,6 +51,11 @@ class ReminderSchedulerTest {
             .build()
         planRepository = PlanRepository(db)
         alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+
+        // PlanListApp.onCreate 会真的执行并排下一个"每日补齐"闹钟 —— 那是正确的生产行为，
+        // 不是测试污染，所以不去清它（Robolectric 的 getScheduledAlarms() 返回不可变副本，也清不掉）。
+        // 改为记录基线，后面一律断言"本次用例新增的闹钟"。
+        baselineAlarms = shadowOf(alarmManager).scheduledAlarms.toList()
     }
 
     @After
@@ -70,7 +76,15 @@ class ReminderSchedulerTest {
             listOf(PlanItemEntity(groupId = 0L, name = "鸡胸肉", calories = 210)),
         )
 
-    private fun scheduledCount(): Int = shadowOf(alarmManager).scheduledAlarms.size
+    /** setUp 时刻已经存在的闹钟（即 Application.onCreate 排下的那个"每日补齐"）。 */
+    private var baselineAlarms: List<ShadowAlarmManager.ScheduledAlarm> = emptyList()
+
+    /** 本次用例真正新增的闹钟。用同一性比较，避免影响到基线里的对象。 */
+    private fun newAlarms(): List<ShadowAlarmManager.ScheduledAlarm> =
+        shadowOf(alarmManager).scheduledAlarms
+            .filterNot { existing -> baselineAlarms.any { it === existing } }
+
+    private fun scheduledCount(): Int = newAlarms().size
 
     // ------------------------------------------------------------------ R4
 
@@ -94,7 +108,7 @@ class ReminderSchedulerTest {
             .atZone(ZoneId.of("Asia/Shanghai"))
             .toInstant()
             .toEpochMilli()
-        assertEquals(expected, shadowOf(alarmManager).scheduledAlarms.minOf { it.triggerAtTime })
+        assertEquals(expected, newAlarms().minOf { it.triggerAtTime })
     }
 
     @Test
@@ -107,7 +121,7 @@ class ReminderSchedulerTest {
             .atZone(ZoneId.of("Asia/Shanghai"))
             .toInstant()
             .toEpochMilli()
-        assertEquals(expected, shadowOf(alarmManager).scheduledAlarms.single().triggerAtTime)
+        assertEquals(expected, newAlarms().single().triggerAtTime)
     }
 
     @Test
@@ -192,6 +206,45 @@ class ReminderSchedulerTest {
         assertEquals(0, scheduledCount())
     }
 
+    // ------------------------------------------------------- 每日自续期补齐
+
+    @Test
+    fun daily_top_up_is_scheduled_at_next_0005() = runTest {
+        val scheduler = ReminderScheduler(context, planRepository, time)
+
+        // 现在是 2026-03-05 08:00，所以下一次补齐应落在 03-06 00:05
+        scheduler.scheduleDailyTopUp()
+
+        val expected = LocalDateTime.of(2026, 3, 6, 0, 5)
+            .atZone(ZoneId.of("Asia/Shanghai"))
+            .toInstant()
+            .toEpochMilli()
+        assertEquals(1, scheduledCount())
+        assertEquals(expected, newAlarms().single().triggerAtTime)
+    }
+
+    @Test
+    fun daily_top_up_is_idempotent() = runTest {
+        val scheduler = ReminderScheduler(context, planRepository, time)
+
+        scheduler.scheduleDailyTopUp()
+        scheduler.scheduleDailyTopUp()
+
+        // 重复排程必须覆盖同一个 PendingIntent，而不是堆出两个闹钟
+        assertEquals(1, scheduledCount())
+    }
+
+    @Test
+    fun top_up_and_reminders_coexist() = runTest {
+        insertDailyGroup(hour = 12, minute = 30)
+        val scheduler = ReminderScheduler(context, planRepository, time)
+
+        scheduler.scheduleWindow(days = 7)
+        scheduler.scheduleDailyTopUp()
+
+        assertEquals(8, scheduledCount())
+    }
+
     // ------------------------------------------------------ PendingIntent 唯一性
 
     @Test
@@ -199,7 +252,7 @@ class ReminderSchedulerTest {
         insertDailyGroup(hour = 12, minute = 30)
         ReminderScheduler(context, planRepository, time).scheduleWindow(days = 3)
 
-        val times = shadowOf(alarmManager).scheduledAlarms.map { it.triggerAtTime }.sorted()
+        val times = newAlarms().map { it.triggerAtTime }.sorted()
         assertEquals(3, times.size)
         assertEquals(3, times.toSet().size)
     }

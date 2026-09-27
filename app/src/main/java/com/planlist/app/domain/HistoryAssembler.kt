@@ -26,12 +26,17 @@ object HistoryAssembler {
         if (to.isBefore(from)) return emptyList()
 
         val itemsByGroup = items.groupBy { it.groupId }
-        val statusByItem: Map<Long, LogStatus> = logs.associate { it.itemId to it.status }
+        // 必须先按日期分组再算每天的完成度。
+        // 之前这里用同一个 statusByItem 遍历所有日期，导致日历上每一天都显示成同一种状态。
+        val statusByDate: Map<String, Map<Long, LogStatus>> = logs
+            .groupBy { it.date }
+            .mapValues { (_, dayLogs) -> dayLogs.associate { it.itemId to it.status } }
 
         val result = ArrayList<DaySummary>()
         var date = from
         while (!date.isAfter(to)) {
             val applicable = RecurrenceCalculator.occurrencesOn(groups, date)
+            val statusByItem = statusByDate[date.toString()].orEmpty()
 
             var totalGroups = 0
             var doneGroups = 0

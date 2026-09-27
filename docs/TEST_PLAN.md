@@ -5,7 +5,7 @@
 | 层 | 位置 | 工具 | 覆盖目标 | 运行耗时 |
 |----|------|------|----------|----------|
 | L1 纯逻辑单元测试 | `app/src/test` | JUnit4 + `kotlinx-coroutines-test` | `domain/` 全部纯函数、备份编解码、ViewModel | 秒级 |
-| L2 Android 集成测试 | `app/src/test`（Robolectric） | Robolectric 4.14.1 + Room in-memory + `WorkManagerTestInitHelper` | DAO 约束、AlarmManager 排程、通知渠道、权限降级分支 | 十秒级 |
+| L2 Android 集成测试 | `app/src/test`（Robolectric） | Robolectric 4.14.1 + Room in-memory | DAO 约束、AlarmManager 排程、通知渠道、权限降级分支 | 十秒级 |
 | L3 Compose UI 测试 | `app/src/androidTest` | `createAndroidComposeRule` | 今日页三态渲染、勾选联动、长按手势、编辑页校验 | 需设备/模拟器 |
 | L4 真机手工验收 | HyperOS 3 实机 | 人工 + `adb shell dumpsys alarm` | 系统级行为：Doze、重启、权限、DND | 跨天 |
 
@@ -131,7 +131,7 @@ L3 只测关键交互路径，L4 只测系统级行为（无法自动化的部�
 | R7 | 通知渠道创建 | `reminders` 渠道存在，importance = HIGH，震动开启 |
 | R8 | 通知动作 `COMPLETE_GROUP` | 触发后日志写入、通知被取消 |
 | R9 | `RescheduleReceiver` 收到 `BOOT_COMPLETED` | 重新排程数 > 0 |
-| R10 | `AlarmTopUpWorker` 单次运行 | 排程窗口被补齐到 7 天 |
+| R10 | `scheduleDailyTopUp()` | 每天 00:05 排下唯一的补齐闹钟，重复调用不堆叠；与普通提醒闹钟共存 |
 | R11 | 数据库迁移（`MigrationTestHelper`） | v1 schema 与实体一致（迁移测试骨架，后续加表时启用） |
 
 ## 4. L3 Compose UI 用例
