@@ -8,9 +8,10 @@
 **每一次代码变更，都必须同时完成下面四件事，缺一不可：**
 
 1. **更新 `CHANGELOG.md`** —— 在文件顶部的 `## [未发布]` 段落里，按 `新增 / 变更 / 修复 / 移除 / 安全` 分类写清楚改了什么、为什么改
-2. **处理版本号** —— `versionCode`（整数）在**任何会改变 APK 内容的提交**里都必须递增
-   （即 `app/src/**`、`app/build.gradle.kts`、`gradle/libs.versions.toml` 有变化时）；
-   纯文档提交不用动它。`versionName` 只在"要发布一个新版本"时递增。
+2. **处理版本号** —— `versionCode`（整数）在**任何会改变 APK 内容的提交**里都必须递增，
+   即 `app/src/**`、`app/build.gradle.kts`、`gradle/libs.versions.toml` 有变化时。
+   **只改 `docs/`、`tools/`、`*.md` 的提交不需要动版本号**（APK 内容没变）。
+   `versionName` 只在"要发布一个新版本"时递增。
    判定标准是**有没有打过 tag / 发过 Release**：同一个 `versionName` 一旦发布过，
    就不允许再往里塞新改动，必须开新版本号。
 3. **提交到 git** —— commit message 格式见下方

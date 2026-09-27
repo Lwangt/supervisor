@@ -37,6 +37,19 @@ function Write-Step2($m) { Write-Host ''; Write-Host ('=== ' + $m + ' ===') -For
 function Write-Ok($m)    { Write-Host ('  [OK] ' + $m) -ForegroundColor Green }
 function Stop-WithError($m) { Write-Host ('  [X]  ' + $m) -ForegroundColor Red; Pop-Location; exit 1 }
 
+# 到 github.com 的连接偶发 "Recv failure: Connection was aborted"（实测连续两次发布各遇到一次）。
+# 推送是幂等操作，直接重试，不要留给人肉补刀。
+$MaxPushAttempts = 6
+function Push-WithRetry($ref, [switch]$Force) {
+    for ($i = 1; $i -le $MaxPushAttempts; $i++) {
+        Write-Host ('  push ' + $ref + ' （第 ' + $i + '/' + $MaxPushAttempts + ' 次）')
+        if ($Force) { & git push origin $ref --force } else { & git push origin $ref }
+        if ($LASTEXITCODE -eq 0) { return $true }
+        if ($i -lt $MaxPushAttempts) { Start-Sleep -Seconds 6 }
+    }
+    return $false
+}
+
 if ($Version -notmatch '^\d+\.\d+\.\d+$') {
     Stop-WithError ('版本号必须是 x.y.z 形式，收到: ' + $Version)
 }
@@ -107,10 +120,8 @@ Write-Ok $tag
 
 # ---------------------------------------------------------------- 5. 推送
 Write-Step2 '5/6 推送到远端'
-& git push origin HEAD
-if ($LASTEXITCODE -ne 0) { Stop-WithError 'git push 失败（检查凭据与网络）' }
-& git push origin $tag --force
-if ($LASTEXITCODE -ne 0) { Stop-WithError '推送 tag 失败' }
+if (-not (Push-WithRetry 'HEAD')) { Stop-WithError 'git push 失败（已重试多次，检查凭据与网络）' }
+if (-not (Push-WithRetry $tag -Force)) { Stop-WithError '推送 tag 失败（已重试多次）' }
 Write-Ok 'main 与 tag 均已推送'
 
 # ---------------------------------------------------------------- 6. 编译
