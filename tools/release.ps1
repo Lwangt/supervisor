@@ -7,14 +7,18 @@
 .EXAMPLE
     .\tools\release.ps1 -Version 0.2.0 -Notes "支持自定义主题色"
 .EXAMPLE
-    .\tools\release.ps1 -Version 0.2.0 -Notes "修复提醒重复触发" -Publish
+    # 推荐：多行、含引号的中文说明写在文件里，避免 PowerShell 5.1 的参数引号 bug
+    .\tools\release.ps1 -Version 0.2.0 -NotesFile .\notes.md -Publish
 .NOTES
-    -Publish 需要环境变量 GITHUB_TOKEN（GitHub Personal Access Token，需 repo 权限）
+    -Publish 优先用环境变量 GITHUB_TOKEN；未设置时回退到 git 已存好的 GitHub 凭据
+    （与 git push 用的是同一份），因此本机通常无需额外配置即可发布。
 #>
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][string]$Version,
-    [Parameter(Mandatory = $true)][string]$Notes,
+    # 变更说明：短句用 -Notes；多行中文强烈建议用 -NotesFile
+    [string]$Notes,
+    [string]$NotesFile,
     [switch]$Publish,
     [switch]$SkipTests,
     [string]$Repo = 'Lwangt/supervisor',
@@ -38,6 +42,18 @@ if ($Version -notmatch '^\d+\.\d+\.\d+$') {
 }
 $tag = 'v' + $Version
 $date = (Get-Date).ToString('yyyy-MM-dd')
+
+# 解析变更说明。
+# 为什么不直接用 -Notes 传多行中文：PowerShell 5.1 组装原生命令行时不转义参数内部的
+# 引号，git / Invoke-RestMethod 会把内容拆散（见 AGENTS.md 第五节第 4 条）。
+if ([string]::IsNullOrWhiteSpace($Notes) -and [string]::IsNullOrWhiteSpace($NotesFile)) {
+    Stop-WithError '必须提供 -Notes 或 -NotesFile 之一'
+}
+if (-not [string]::IsNullOrWhiteSpace($NotesFile)) {
+    if (-not (Test-Path $NotesFile)) { Stop-WithError ('找不到变更说明文件: ' + $NotesFile) }
+    $Notes = [System.IO.File]::ReadAllText((Resolve-Path $NotesFile).Path, (New-Object System.Text.UTF8Encoding($false)))
+    Write-Host ('已读取变更说明: ' + $NotesFile + '（' + $Notes.Length + ' 字）')
+}
 
 # ---------------------------------------------------------------- 1. 版本号
 Write-Step2 ('1/6 递增版本号 -> ' + $Version)
@@ -76,7 +92,10 @@ Write-Step2 '3/6 提交到 git'
 & git add -A
 if ($LASTEXITCODE -ne 0) { Stop-WithError 'git add 失败' }
 $subject = 'release: ' + $tag
-& git commit -m $subject -m $Notes.Trim()
+$commitMsg = $subject + [Environment]::NewLine + [Environment]::NewLine + $Notes.Trim()
+$commitMsgFile = Join-Path $env:TEMP 'planlist-release-commit.txt'
+[System.IO.File]::WriteAllText($commitMsgFile, $commitMsg, (New-Object System.Text.UTF8Encoding($false)))
+& git commit -F $commitMsgFile
 if ($LASTEXITCODE -ne 0) { Write-Host '  [!] 没有需要提交的改动，或提交失败（继续打 tag）' -ForegroundColor Yellow }
 Write-Ok ('已提交: ' + $subject)
 
@@ -117,7 +136,16 @@ if ($Publish) {
     Write-Step2 '发布 GitHub Release'
     $token = $env:GITHUB_TOKEN
     if ([string]::IsNullOrWhiteSpace($token)) {
-        Write-Host '  [!] 未设置 GITHUB_TOKEN，跳过自动发布。' -ForegroundColor Yellow
+        # 回退：复用 git 已存好的 github 凭据（与 git push 用的是同一份）
+        Write-Host '  未设置 GITHUB_TOKEN，尝试复用 git 已保存的凭据...'
+        $probe = 'protocol=https' + [char]10 + 'host=github.com' + [char]10 + [char]10
+        $credRaw = ($probe | & git credential fill 2>&1 | Out-String)
+        foreach ($line in ($credRaw -split [char]10)) {
+            if ($line.Trim().StartsWith('password=')) { $token = $line.Trim().Substring(9) }
+        }
+    }
+    if ([string]::IsNullOrWhiteSpace($token)) {
+        Write-Host '  [!] 拿不到可用凭据，跳过自动发布。' -ForegroundColor Yellow
         Write-Host '      手动发布：打开 https://github.com/' + $Repo + '/releases/new'
         Write-Host '      选择 tag ' + $tag + '，把上面的 APK 拖进去即可。'
     } else {
@@ -134,8 +162,13 @@ if ($Publish) {
             prerelease = $false
         } | ConvertTo-Json -Depth 4
 
+        # JSON 落成 UTF-8 文件再用 -InFile 发送：
+        # PS 5.1 直接把非 ASCII 字符串当 body 会按本地代码页编码，换来 400 Problems parsing JSON
+        $jsonFile = Join-Path $env:TEMP 'planlist-release.json'
+        [System.IO.File]::WriteAllText($jsonFile, $body, (New-Object System.Text.UTF8Encoding($false)))
+
         try {
-            $release = Invoke-RestMethod -Method Post -Uri ('https://api.github.com/repos/' + $Repo + '/releases') -Headers $headers -Body $body -ContentType 'application/json'
+            $release = Invoke-RestMethod -Method Post -Uri ('https://api.github.com/repos/' + $Repo + '/releases') -Headers $headers -InFile $jsonFile -ContentType 'application/json; charset=utf-8'
             Write-Ok ('Release 已创建: ' + $release.html_url)
 
             $uploadUrl = $release.upload_url -replace '\{.*\}', ''

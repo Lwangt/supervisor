@@ -61,8 +61,12 @@
             android:directBootAware="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <!-- 刻意不含 LOCKED_BOOT_COMPLETED：本应用 directBootAware=false，
+                     且数据库处于凭据加密存储，解锁前读不到计划，声明了也收不到、收得到也没用 -->
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <!-- 用户在系统设置里授予"闹钟和提醒"权限后立即重排，
+                     否则要等到下次打开 App 才会用上精确闹钟 -->
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
                 <action android:name="android.intent.action.TIME_SET" />
                 <action android:name="android.intent.action.TIMEZONE_CHANGED" />
                 <action android:name="android.intent.action.DATE_CHANGED" />

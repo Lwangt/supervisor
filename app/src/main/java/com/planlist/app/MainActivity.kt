@@ -31,10 +31,15 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        // 每次回到前台补一次排程窗口：覆盖"系统清理 + 用户手动强停"后的恢复
+        // 每次回到前台补一次排程窗口，并重启每日补齐链。
+        // 这里才是"系统清理过闹钟 / 用户手动强停过"之后的主要恢复路径，
+        // 而 Application.onCreate 不再承担这件事（它也会在闹钟冷启动时执行，见 PlanListApp 注释）。
         val container = (application as PlanListApp).container
         container.appScope.launch {
-            runCatching { container.reminderScheduler.scheduleWindow() }
+            runCatching {
+                container.reminderScheduler.scheduleWindow()
+                container.reminderScheduler.scheduleDailyTopUp()
+            }
         }
     }
 }

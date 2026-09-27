@@ -32,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -48,14 +49,18 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.planlist.app.AppContainer
 import com.planlist.app.data.repo.AppSettings
 import com.planlist.app.data.repo.ThemeMode
+import com.planlist.app.domain.NextReminderCalculator
 import com.planlist.app.reminder.NotificationFactory
+import com.planlist.app.reminder.ReminderScheduler
 import com.planlist.app.reminder.Permissions
 import com.planlist.app.ui.theme.Danger
 import com.planlist.app.ui.theme.Primary
 import com.planlist.app.ui.theme.Warning
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.format.DateTimeFormatter
 
 @Composable
 fun SettingsScreen(container: AppContainer) {
@@ -74,6 +79,22 @@ fun SettingsScreen(container: AppContainer) {
         mutableStateOf(Permissions.isBatteryOptimizationIgnored(context))
     }
     var status by remember { mutableStateOf<String?>(null) }
+
+    // 每 30 秒重算"下一次提醒"，让排程状态可观测。
+    // 提醒类应用最怕"我以为排上了，其实没有"，而用户要等到点才知道。
+    val upcoming by produceState<NextReminderCalculator.NextReminder?>(initialValue = null) {
+        while (true) {
+            value = withContext(Dispatchers.IO) {
+                runCatching {
+                    NextReminderCalculator.next(
+                        groups = container.planRepository.enabledGroups(),
+                        from = container.time.now(),
+                    )
+                }.getOrNull()
+            }
+            delay(30_000L)
+        }
+    }
 
     // 从系统设置页返回时刷新权限状态
     DisposableEffect(lifecycleOwner) {
@@ -172,6 +193,43 @@ fun SettingsScreen(container: AppContainer) {
             actionLabel = "去设置",
             onAction = { SettingsIntents.requestIgnoreBatteryOptimization(context) },
         )
+
+        val nextReminderText = when {
+            !settings.remindersEnabled -> "提醒总开关已关闭"
+            upcoming == null -> "暂无排程：还没有启用的计划，或计划都已结束"
+            else -> "下一次提醒：" + upcoming!!.triggerAt.format(NEXT_REMINDER_FORMAT) +
+                " · " + upcoming!!.groupName
+        }
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.large,
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("提醒排程状态", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    text = nextReminderText,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = if (upcoming != null && settings.remindersEnabled) {
+                        Primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+                Text(
+                    "已排程未来 " + ReminderScheduler.WINDOW_DAYS + " 天，每天 00:05 自动续期。",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    "提醒由系统闹钟唤醒应用执行：不需要应用常驻后台，不需要任何常驻服务，" +
+                        "也不要求应用保持在最近任务里。应用被完全杀掉后到点依然会响。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
 
         TextButton(
             onClick = {
@@ -358,6 +416,8 @@ fun SettingsScreen(container: AppContainer) {
         Spacer(modifier = Modifier.height(40.dp))
     }
 }
+
+private val NEXT_REMINDER_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("M月d日 HH:mm")
 
 @Composable
 private fun SectionTitle(text: String) {
