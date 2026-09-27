@@ -3,7 +3,9 @@
 自用的**饮食 + 运动计划打卡 App**，纯离线、无条数限制、到点通知 + 震动提醒。
 对标 Macro7，但移除其"计划条数上限 / 订阅收费"限制。
 
-> ⚠️ 代码已写完整但**尚未编译验证**（本机缺 JDK 17 与 Android SDK）。详见 [STATUS.md](STATUS.md)。
+> ✅ **v0.1.0 已发布**，127 条单元测试通过，Release APK 仅 1.33 MB 且**无 INTERNET 权限**。
+> 手机直接下载安装：<https://github.com/Lwangt/supervisor/releases/tag/v0.1.0>
+> 当前进度与未验证项详见 [STATUS.md](STATUS.md)。
 
 - 目标设备：小米 HyperOS 3（Android 16）
 - 技术栈：Kotlin 2.1 + Jetpack Compose (Material 3) + Room

@@ -8,8 +8,9 @@
 **每一次代码变更，都必须同时完成下面四件事，缺一不可：**
 
 1. **更新 `CHANGELOG.md`** —— 在文件顶部的 `## [未发布]` 段落里，按 `新增 / 变更 / 修复 / 移除 / 安全` 分类写清楚改了什么、为什么改
-2. **处理版本号** —— `versionCode`（整数）**每次提交都必须递增**；
-   `versionName` 只在"要发布一个新版本"时递增。
+2. **处理版本号** —— `versionCode`（整数）在**任何会改变 APK 内容的提交**里都必须递增
+   （即 `app/src/**`、`app/build.gradle.kts`、`gradle/libs.versions.toml` 有变化时）；
+   纯文档提交不用动它。`versionName` 只在"要发布一个新版本"时递增。
    判定标准是**有没有打过 tag / 发过 Release**：同一个 `versionName` 一旦发布过，
    就不允许再往里塞新改动，必须开新版本号。
 3. **提交到 git** —— commit message 格式见下方
@@ -83,6 +84,17 @@ Windows PowerShell 5.1 **没有 BOM 就会按系统 ANSI 代码页（中文系�
 3. 另外，`$ErrorActionPreference = 'Stop'` 会让原生命令（`java`、`sdkmanager`、`gradle`）
    写到 stderr 的正常输出被当成 terminating error。脚本里统一用 `'Continue'` +
    显式检查 `$LASTEXITCODE`。
+4. **不要把多行、含引号的文本直接传给原生命令**，例如
+   `git commit -m $msg`。PowerShell 5.1 组装命令行时不会转义参数内部的 `"`，
+   git 会把消息拆成多个参数、报出莫名其妙的 `pathspec 'xxx' did not match`。
+   正确做法是先落成文件再引用：
+
+   ```powershell
+   [System.IO.File]::WriteAllText($path, $msg, (New-Object System.Text.UTF8Encoding($false)))
+   git commit -F $path
+   ```
+
+   同理，`Invoke-RestMethod -Body <字符串>` 发非 ASCII 内容时也应当落文件后用 `-InFile`。
 
 ## 六、其他约定
 
