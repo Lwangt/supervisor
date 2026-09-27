@@ -1,0 +1,18 @@
+# 仓库内统一用 LF 存储，避免 Windows 的 autocrlf 在不同机器上产生幽灵 diff
+* text=auto eol=lf
+
+# PowerShell 脚本必须带 CRLF，且**必须保留 UTF-8 BOM**
+# （Windows PowerShell 5.1 没有 BOM 时会按 GBK 读取，中文注释会变成乱码并引发语法错误）
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 二进制
+*.jar binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.apk binary
+*.aab binary
+*.keystore binary
